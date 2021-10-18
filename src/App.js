@@ -82,7 +82,7 @@ function App() {
               <div>
                 <p>URI List</p>
                 <ul>
-                  {links.map(link=><li key={link.name}><a href={formatIOSMobile(uri, link)/*link.urlformatIOSMobile(uri, link)*/} target="_blank" rel="noopener noreferrer">{link.name}</a></li>)}
+                  {links.map(link=><li key={link.name}><a href={formatIOSMobile(uri, link)} target="_blank" rel="noopener noreferrer">{link.name}</a></li>)}
                 </ul>
               </div>): null
           }
