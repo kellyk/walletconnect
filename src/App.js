@@ -1,110 +1,93 @@
 import './App.css';
 import React from "react";
-import WalletConnectProvider from "@walletconnect/web3-provider";
-import { providers } from "ethers";
+import WalletConnect from "@walletconnect/client";
+import { registry } from './registry';
+import {
+  isMobile,
+  formatIOSMobile,
+  formatMobileRegistry,
+} from "@walletconnect/browser-utils";
 
-//  Create WalletConnect Provider
-const provider = new WalletConnectProvider({
-  infuraId: "5e9fe0e68aae4428bda3d426f33124fa",
-  rpc: {},
-  qrcode: true,
-  qrcodeModalOptions: {
-    mobileLinks: [
-      "rainbow",
-      "metamask",
-      "argent",
-      "trust",
-      "imtoken",
-      "pillar",
-    ],
-  },
+let connector = new WalletConnect({
+  bridge: "https://bridge.walletconnect.org", // Replace with custom
 });
 
-//  Create Web3 instance
-const web3 = new providers.Web3Provider(provider);
-
 function App() {
-  const [wallets, setWallets] = React.useState();
+  const [uri, setUri] = React.useState([]);
+  const [links, setLinks] = React.useState([]);
+  const [accounts, setAccounts] = React.useState([]);
 
-  const setupWalletConnect = async () => {
-    //  Enable session (triggers QR Code modal)
-    await provider.enable();
-
-    // Subscribe to accounts change
-    provider.on("accountsChanged", (accounts: string[]) => {
-      console.log({ accounts });
-    });
-
-    // Subscribe to chainId change
-    provider.on("chainChanged", (chainId: number) => {
-      console.log({ chainId });
-    });
-
-    // Subscribe to session disconnection
-    provider.on("disconnect", (code: number, reason: string) => {
-      console.log({code, reason});
-    });
-
-    provider.connector.on("display_uri", (err, payload) => {
-      const uri = payload.params[0];
-      console.log({uri})
-      // CustomQRCodeModal.display(uri);
-    });
-    // console.log('set up wallet', web3.eth)
-    // const balance = await web3.eth.getBalance("0x5dfDA382c5328BE2e1d9ac5bed17009d7b7F3571");
-    // console.log('balance', balance);
-    console.log('list accounts', web3.listAccounts);
-    web3.listAccounts().then((accounts) => {
-      console.log('accounts', accounts);
-    });
+  const init = () => {
+    const uri = connector.uri;
+    setUri(uri);
+    createLinks();
   }
-  const connectWallet = async () => {
-    try {
-      const { ethereum } = window;
-
-      if (!ethereum) {
-        alert("Get MetaMask!");
-        return;
-      }
-
-      const accounts = await ethereum.request({ method: "eth_requestAccounts" });
-
-      console.log("Connected", accounts);
-
-    } catch (error) {
-      console.log(error)
+  const createWalletConnectSession = async () => {
+    if (!connector.connected) {
+      await connector.createSession();
+      init();
+    } else {
+      init();
     }
-  }
 
-  const getWalletList = async () => {
-    const walletList = await fetch('https://registry.walletconnect.org/data/wallets.json');
-    const list = await walletList.json();
-    setWallets(list);
-  }
-
-  const renderWallets = () => {
-    const ids = Object.keys(wallets);
-    return ids.map(id => {
-      const wallet = wallets[id];
-      const imgSrc = `https://registry.walletconnect.org/logo/sm/${wallet.id}.jpeg`;
-      return (
-        <div key={id}>
-          <img className="logo" src={imgSrc} alt="logo" />
-          <span>{wallet.name}</span>
-        </div>
-      )
+    connector.on("connect", (error, payload) => {
+      if (error) {
+        throw error;
       }
-    );
-  };
+
+      console.log('connect payload', payload)
+
+      const { accounts, /* chainId */ } = payload.params[0];
+      setAccounts(accounts);
+    });
+
+    connector.on("session_update", (error, payload) => {
+      if (error) {
+        throw error;
+      }
+
+      setAccounts(payload.params[0].accounts);
+    });
+
+    connector.on("disconnect", (error, payload) => {
+      if (error) {
+        throw error;
+      }
+      // Delete connector
+      connector = null;
+    });
+  }
+
+  const createLinks = () => {
+    const mobile = isMobile();
+    const platform = mobile ? "mobile" : "desktop";
+    const formattedLinks = formatMobileRegistry(registry, platform);
+    setLinks(formattedLinks);
+  }
 
   return (
-    <div className="App">
-      <header className="App-header">
-        <div>
-          <button onClick={setupWalletConnect}>Connect wallet</button>
-          { wallets ? <div className="walletList">{renderWallets()}</div> : null }
+    <div className="app">
+      <div className="container">
+        <div className="demo connect">
+          {!accounts.length ? (
+              <button onClick={createWalletConnectSession}>Start WalletConnect Session</button>
+            ) : (
+              <p>Connected to: {accounts[0]}</p>
+            )
+          }
         </div>
-      </header>
+        <div className="demo uris">
+          {
+            links.length ? (
+              <div>
+                <p>URI List</p>
+                <ul>
+                  {links.map(link=><li key={link.name}><a href={formatIOSMobile(uri, link)/*link.urlformatIOSMobile(uri, link)*/} target="_blank" rel="noopener noreferrer">{link.name}</a></li>)}
+                </ul>
+              </div>): null
+          }
+        </div>
+      </div>
     </div>
   );
 }
